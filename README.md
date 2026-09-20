@@ -2,9 +2,51 @@
 
 Prueba técnica. Backend en Express + TypeScript (datos en memoria), frontend en React + TypeScript.
 
-## Cómo arrancar y testear
+## Cómo arrancar
 
-_Pendiente de completar en la fase de andamiaje avanzado / README final (fase 9)._
+Requiere Node 20+. Backend y frontend son dos proyectos npm independientes; hace falta tener **los dos arrancados a la vez** para usar el panel (el frontend habla con `/api/*` y Vite se lo reenvía al backend en `localhost:3000`).
+
+```bash
+# Terminal 1 — backend (puerto 3000)
+cd backend
+npm install
+npm run dev
+```
+
+```bash
+# Terminal 2 — frontend (puerto 5173)
+cd frontend
+npm install
+npm run dev
+```
+
+Abrir `http://localhost:5173`. El backend arranca con datos en memoria: 3 salas y un seed determinista de 100 reservas (semana pasada + dos siguientes, con los tres estados mezclados); se pierden al reiniciar el proceso, no hay persistencia en disco.
+
+No hace falta crear un `.env`: `backend/.env.example` documenta las variables (`PORT`, `LATENCY_MIN_MS`/`MAX_MS`, `FAIL_RATE`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`, `IDEMPOTENCY_TTL_MS`) y `config.ts` ya trae esos mismos valores por defecto si no se define ninguna. Para probar el panel a mano sin que la latencia simulada (200–600 ms) ni el 20 % de fallos molesten, arrancar así:
+
+```bash
+cd backend
+FAIL_RATE=0 LATENCY_MIN_MS=0 LATENCY_MAX_MS=0 npm run dev
+```
+
+Para compilar como para producción (sin desplegar nada, solo comprobar que el build sale limpio):
+
+```bash
+cd backend  && npm run build   # → backend/dist
+cd frontend && npm run build   # → frontend/dist (estático)
+```
+
+## Cómo lanzar los tests
+
+```bash
+cd backend  && npm run typecheck && npm test
+cd frontend && npm run typecheck && npm test && npm run build
+grep -rn "any\|@ts-ignore" backend/src frontend/src   # debe salir vacío
+```
+
+- Backend: 108 tests (Vitest + Supertest), dominio puro y capa HTTP con `createApp(store, config)` en memoria — no hace falta el servidor arrancado para testear.
+- Frontend: 70 tests (Vitest + Testing Library), todos con `fetch`/`api/client` mockeado — tampoco hace falta el backend arrancado. `frontend/vitest.config.ts` fija `FAIL_RATE=0` y latencia a 0 para toda la suite, así que ningún test depende del azar del caos simulado.
+- `npm run typecheck` es `tsc --noEmit` en el backend y `tsc -b` en el frontend; ambos con `strict` y sin `any`/`@ts-ignore` en ningún `.ts`/`.tsx` de `src/` (el único resultado del `grep` es un falso positivo: `expect.any(String)`, el matcher de Vitest, no el tipo `any`).
 
 ## Decisiones tomadas ante ambigüedades del enunciado
 
@@ -31,7 +73,6 @@ Se van anotando en el momento en que se toman, no al final.
 - **Qué filtros viven en la URL (fase 6, `hooks/useUrlFilters.ts`):** `q`, `roomId`, `status`, `from` y `to` — los mismos que acepta `GET /api/bookings`. El cursor de paginación **no** viaja en la URL: es un detalle interno de `useBookings` (volver a la página 1 al cambiar cualquier filtro es el comportamiento esperado, no algo que haya que reconstruir al recargar). Un filtro puesto a cadena vacía se borra de la URL en vez de guardarse como `campo=` para que la URL quede limpia y `parseFiltersFromLocation` no tenga que distinguir "ausente" de "vacío".
 - **Cómo se evita que una respuesta vieja pise a la nueva (fase 6, `hooks/useBookings.ts`):** dos capas. La primera, real: cada vez que se arranca una petición de listado (primera página, `loadMore` o `reload`) se aborta con `AbortController` la anterior si seguía en vuelo. La segunda, defensiva: un `requestId` que se incrementa en cada arranque y se comprueba al llegar la respuesta, para que ni siquiera un mock de test que ignore la señal de aborto pueda colar un resultado obsoleto (así se prueba en `useBookings.test.ts`, con dos promesas controladas a mano donde la "vieja" resuelve después que la "nueva").
 - **Qué pasa con el resto de errores al actualizar el estado de una reserva (fase 6, `hooks/useBookings.ts`):** solo el `409 VERSION_CONFLICT` conserva la reserva que devuelve el servidor en `details.current`. Cualquier otro fallo (`422 INVALID_TRANSITION`, un error de red, lo que sea) deshace el cambio optimista y deja la fila tal como estaba antes de intentar la escritura. En ambos casos el hook relanza el error para que quien lo llame decida cómo avisar al usuario.
-- **Sin confirmar/cancelar todavía (fase 7, `components/BookingsList.tsx`):** esta fase pinta el listado, los filtros y los cuatro estados; deliberadamente no añade botones de confirmar/cancelar sobre cada fila aunque `useBookings` ya expone `updateBookingStatus` desde la fase 6. Se deja para cuando se aborden las escrituras optimistas en la UI, junto al diálogo de nueva reserva.
 - **Las cuatro cargas son mutuamente excluyentes, salvo "cargando más" (fase 7, `components/BookingsList.tsx`):** mientras `isLoading` es `true` (carga inicial **o** una recarga por cambio de filtro) se sustituye todo el contenido por "Cargando reservas…", no se muestran filas antiguas mientras tanto. Un `error` también sustituye el listado entero por el aviso con "Reintentar" (incluido un fallo de `loadMore`: se prefiere una recarga limpia desde la página 1 antes que dejar filas a medio cargar junto a un error). Solo "cargando más" convive con las filas ya pintadas, porque por definición se está añadiendo, no reemplazando.
 - **Dónde viven las salas para los filtros y las filas (fase 7, `App.tsx`):** se piden una vez con `getRooms()` en un `useEffect` de `App`, sin un hook dedicado — el enunciado no lista uno para esto (solo `useAvailability` en la fase 8, que es distinto: huecos de una sala, no el catálogo de salas). Si la petición falla, el listado sigue funcionando; las filas simplemente muestran el id de la sala en vez de su nombre.
 - **CSS del scaffold de Vite reemplazado (fase 7, `index.css`):** la plantilla inicial traía una landing centrada (`text-align: center`, ancho fijo de 1126px) pensada para una página de bienvenida, no para un listado de datos. Se sustituyó por un contenedor de ancho legible sin centrar, manteniendo las variables de tema claro/oscuro ya definidas.
@@ -41,3 +82,15 @@ Se van anotando en el momento en que se toman, no al final.
 - **Duración como lista cerrada, no un número libre (fase 8, `components/NewBookingDialog.tsx`):** 30/45/60/90/120/180/240 minutos. El backend acepta cualquier múltiplo de 15 entre 30 y 480, pero pedir un número libre invitaría a valores que no encajan en el paso de 15 min de los huecos; una lista corta de duraciones habituales evita esa fricción sin duplicar la validación del servidor.
 - **Día por defecto: hoy en la zona del estudio (fase 8, `lib/dates.ts`, `todayLocalDate`):** se añadió esta función porque `computeAvailability` ya calcula "hoy" con Luxon en el backend, pero el frontend no tenía ninguna forma de obtener el día de hoy sin arriesgarse a usar la zona horaria del navegador por error.
 - **Qué pasa con los otros campos al fallar por `OVERLAP` (fase 8, `components/NewBookingDialog.tsx`):** solo se limpia el hueco elegido y se piden huecos de nuevo; sala, día, duración, título y cliente se conservan, porque lo único que dejó de ser válido es el hueco concreto, no el resto del formulario.
+- **Confirmación antes de cancelar, no antes de confirmar (`components/BookingsList.tsx`):** el enunciado no pide un diálogo de confirmación en ningún sitio, pero cancelar es la única acción irreversible desde la UI (`cancelled` no se reactiva ni se mueve), así que el botón "Cancelar" pasa por `window.confirm()` antes de escribir; si se rechaza, no se llama a la API. "Confirmar" no lo necesita, porque una reserva confirmada se puede seguir cancelando después — no hay nada que "deshacer" a ciegas.
+
+## Qué ha quedado fuera y por qué
+
+- **Docker, login, i18n, despliegue:** excluidos explícitamente por las reglas del enunciado (sección 0). No hay `Dockerfile`, no hay autenticación ni sesiones, todos los textos están fijos en español, y no hay pipeline de CI/CD ni configuración para desplegar en ningún sitio — solo `npm run dev`/`npm run build` locales.
+- **Mover una reserva desde la interfaz:** el backend soporta mover (`PATCH` con `roomId`/`start`/`end`, incluso a la vez que cambiar el estado — ver la decisión de la fase 3 más arriba), pero el frontend nunca ofrece esa acción. Las únicas escrituras expuestas en la UI son crear (diálogo), confirmar y cancelar (filas del listado). Añadir "editar/mover" implicaría reutilizar el diálogo de nueva reserva con los campos precargados y manejar el `version` que exige el `PATCH` (si la reserva cambió mientras se editaba, el servidor respondería `409 VERSION_CONFLICT`), que no entraba en el alcance de las fases pedidas.
+- **Borrado físico (`DELETE`) sin botón en la UI:** la API lo expone (`DELETE /api/bookings/:id?version=`) y `api/client.ts` lo implementa (`deleteBooking`), pero ningún componente lo llama. La única forma de "quitar" una reserva desde el panel es cancelarla (soft, con histórico), coherente con la decisión de la fase 3 de mantener cancelar y borrar como acciones distintas; borrar de verdad no tenía un caso de uso claro en la interfaz que pedían las fases.
+- **Sin paginación "ir a la página N":** solo scroll infinito con cursor, tal como pide el enunciado. No hay indicador de "página X de Y" ni salto directo a una página, porque un cursor opaco no permite calcular eso sin recorrer el listado.
+- **Sin URL base de API configurable:** el frontend llama siempre a rutas relativas (`/api/...`), pensado para el proxy de Vite en desarrollo (`vite.config.ts`) o para servirse desde el mismo origen que el backend en un hipotético despliegue. No hay variable de entorno tipo `VITE_API_URL`: no hacía falta para las fases pedidas y añadirla sin un destino real de despliegue habría sido configuración especulativa.
+- **Sin reintento en bucle indefinido para lecturas fallidas:** `api/client.ts` reintenta `503`/`429` en cualquier petición, lecturas incluidas, porque es la misma función `request()` la que sirve a todos los endpoints. Pero el enunciado solo exige reintento automático para escrituras (sección "Escrituras"); para el listado y la disponibilidad, una vez agotados esos reintentos automáticos (`MAX_RETRIES = 5`), se ofrece un botón "Reintentar" manual (estado de error de la fase 7) en vez de seguir reintentando solo en bucle indefinidamente.
+- **Sin tests end-to-end en la suite:** la verificación en navegador real (Playwright, backend y frontend arrancados a la vez) se usó puntualmente durante el desarrollo de las fases 7 y 8 para comprobar el scroll infinito, los filtros y la accesibilidad del diálogo con una app de verdad, pero no quedó como un paquete de tests dentro del repo ni como paso de `npm test`. Los 178 tests (108 backend + 70 frontend) son unitarios/de integración en memoria, sin arrancar ningún servidor real.
+- **Sin "live region" de accesibilidad más allá de `role="alert"`/`role="status"`:** los avisos de error y los estados de carga usan roles ARIA estándar para que un lector de pantalla los anuncie, pero no hay una región `aria-live="polite"` dedicada a anunciar, por ejemplo, que una reserva cambió de estado tras confirmarla. No lo pedía el enunciado y habría sido pulido adicional fuera de las fases marcadas.
