@@ -51,15 +51,12 @@
 }
 
 #root {
-  width: 1126px;
+  width: 900px;
   max-width: 100%;
   margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
-  display: flex;
-  flex-direction: column;
   box-sizing: border-box;
+  padding: 0 24px 48px;
 }
 
 body {
@@ -108,4 +105,120 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.filters-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.filters-field input,
+.filters-field select {
+  font: inherit;
+  color: var(--text-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  min-width: 160px;
+}
+
+.bookings-total {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.bookings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.booking-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.booking-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.booking-main strong {
+  color: var(--text-h);
+}
+
+.booking-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.status-badge {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-badge-pending {
+  color: #92620a;
+  background: rgba(217, 152, 8, 0.15);
+}
+
+.status-badge-confirmed {
+  color: #147a3d;
+  background: rgba(20, 150, 76, 0.15);
+}
+
+.status-badge-cancelled {
+  color: #8a8a8a;
+  background: rgba(120, 120, 120, 0.15);
+}
+
+.state {
+  text-align: left;
+  padding: 16px 0;
+  color: var(--text);
+}
+
+.state-error {
+  color: #c0392b;
+}
+
+.state-error button {
+  margin-top: 8px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  border-radius: 6px;
+  padding: 6px 14px;
 }
