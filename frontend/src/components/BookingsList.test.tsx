@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/client';
 import type { Booking, Room } from '../api/types';
 import { BookingsList } from './BookingsList';
 
@@ -56,7 +57,18 @@ function baseProps() {
     rooms,
     onLoadMore: vi.fn(),
     onRetry: vi.fn(),
+    onUpdateStatus: vi.fn().mockResolvedValue(undefined),
   };
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (err: unknown) => void } {
+  let resolve!: (value: T) => void;
+  let reject!: (err: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -121,5 +133,97 @@ describe('BookingsList: scroll infinito', () => {
   it('no observa nada si ya no hay más páginas', () => {
     render(<BookingsList {...baseProps()} items={[makeBooking()]} total={1} hasMore={false} />);
     expect(MockIntersectionObserver.instances).toHaveLength(0);
+  });
+});
+
+describe('BookingsList: confirmar y cancelar', () => {
+  it('una reserva pendiente ofrece confirmar y cancelar', () => {
+    render(<BookingsList {...baseProps()} items={[makeBooking({ status: 'pending' })]} total={1} />);
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+  });
+
+  it('una reserva confirmada solo ofrece cancelar', () => {
+    render(<BookingsList {...baseProps()} items={[makeBooking({ status: 'confirmed' })]} total={1} />);
+    expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+  });
+
+  it('una reserva cancelada no ofrece ninguna acción: no se reactiva ni se mueve', () => {
+    render(<BookingsList {...baseProps()} items={[makeBooking({ status: 'cancelled' })]} total={1} />);
+    expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
+  });
+
+  it('confirmar llama a onUpdateStatus con la reserva y el estado destino', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'pending' });
+    const onUpdateStatus = vi.fn().mockResolvedValue(undefined);
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(onUpdateStatus).toHaveBeenCalledWith(booking, 'confirmed');
+  });
+
+  it('mientras la escritura está en curso, los botones de esa fila se desactivan', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'pending' });
+    const pending = deferred<void>();
+    const onUpdateStatus = vi.fn().mockReturnValue(pending.promise);
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
+
+    pending.resolve();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar' })).toBeEnabled());
+  });
+
+  it('si la escritura falla con un error de negocio, avisa con el mensaje del servidor', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'confirmed' });
+    const onUpdateStatus = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError(422, { error: 'INVALID_TRANSITION', message: 'No se puede pasar de confirmed a pending.' }),
+      );
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se puede pasar de confirmed a pending.');
+  });
+
+  it('si falla por un 409 VERSION_CONFLICT, muestra un aviso propio, no el mensaje crudo del servidor', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'pending' });
+    const onUpdateStatus = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError(409, { error: 'VERSION_CONFLICT', message: 'version mismatch: expected 2, got 1' }),
+      );
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('cambió mientras tanto');
+    expect(alert).not.toHaveTextContent('version mismatch');
+  });
+
+  it('el aviso se puede cerrar', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'pending' });
+    const onUpdateStatus = vi.fn().mockRejectedValue(new ApiError(422, { error: 'VALIDATION_ERROR', message: 'mal' }));
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+    await screen.findByRole('alert');
+
+    await user.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

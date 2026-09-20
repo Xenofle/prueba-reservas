@@ -8,7 +8,8 @@ import { useUrlFilters } from './hooks/useUrlFilters';
 
 function App() {
   const [filters, setFilters] = useUrlFilters();
-  const { items, total, isLoading, isLoadingMore, error, hasMore, loadMore, reload } = useBookings(filters);
+  const { items, total, isLoading, isLoadingMore, error, hasMore, loadMore, reload, updateBookingStatus } =
+    useBookings(filters);
 
   const [rooms, setRooms] = useState<Room[]>([]);
 
@@ -37,6 +38,7 @@ function App() {
         rooms={rooms}
         onLoadMore={loadMore}
         onRetry={reload}
+        onUpdateStatus={updateBookingStatus}
       />
     </main>
   );
