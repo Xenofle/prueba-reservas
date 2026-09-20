@@ -92,6 +92,26 @@ describe('reintentos ante fallos temporales', () => {
     await expect(promise).resolves.toEqual(sampleBooking);
   });
 
+  it('un Retry-After de 300s espera solo el tope de 10s, no 300', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        mockResponse(429, { error: 'RATE_LIMITED', message: 'despacio' }, { 'Retry-After': '300' }),
+      )
+      .mockResolvedValueOnce(mockResponse(201, sampleBooking));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = createBooking(createInput);
+    await Promise.resolve();
+
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await expect(promise).resolves.toEqual(sampleBooking);
+  });
+
   it('manda la misma Idempotency-Key en todos los reintentos del mismo envío', async () => {
     const fetchMock = vi
       .fn()
