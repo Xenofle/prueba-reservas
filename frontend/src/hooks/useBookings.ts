@@ -124,9 +124,11 @@ export function useBookings(filters: BookingsFilters): UseBookingsResult {
       } catch (err) {
         if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
           const serverCurrent = err.details?.current;
-          if (isBookingLike(serverCurrent)) {
-            setItems((current) => current.map((b) => (b.id === booking.id ? serverCurrent : b)));
-          }
+          // Si el servidor no manda una reserva válida en details.current (no
+          // debería pasar, pero no hay que confiar ciegamente en la forma de
+          // un error), se deshace el optimismo en vez de dejarlo aplicado.
+          const restored = isBookingLike(serverCurrent) ? serverCurrent : previous;
+          setItems((current) => current.map((b) => (b.id === booking.id ? restored : b)));
         } else {
           // Cualquier otro fallo (negocio o de red): se deshace el optimismo.
           setItems((current) => current.map((b) => (b.id === booking.id ? previous : b)));

@@ -182,4 +182,28 @@ describe('escrituras optimistas', () => {
     expect(thrown).toBeInstanceOf(ApiError);
     expect(result.current.items[0]).toEqual(serverCurrent);
   });
+
+  it('ante un 409 VERSION_CONFLICT sin details.current, deshace el optimismo sin romperse', async () => {
+    const booking = makeBooking({ status: 'pending', version: 1 });
+    listBookingsMock.mockResolvedValueOnce({ items: [booking], nextCursor: null, total: 1 });
+
+    const { result } = renderHook(() => useBookings({}));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    updateBookingMock.mockRejectedValueOnce(
+      new ApiError(409, { error: 'VERSION_CONFLICT', message: 'La reserva ha cambiado.' }),
+    );
+
+    let thrown: unknown;
+    await act(async () => {
+      try {
+        await result.current.updateBookingStatus(booking, 'confirmed');
+      } catch (err) {
+        thrown = err;
+      }
+    });
+
+    expect(thrown).toBeInstanceOf(ApiError);
+    expect(result.current.items[0]).toEqual(booking);
+  });
 });
