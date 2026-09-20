@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { createElement, StrictMode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useUrlFilters } from './useUrlFilters';
 
 function setLocation(search: string): void {
@@ -85,5 +86,26 @@ describe('useUrlFilters', () => {
     });
 
     expect(result.current[0]).toEqual({ status: 'cancelled' });
+  });
+
+  it('un cambio de filtro añade exactamente una entrada al historial, incluso en StrictMode', () => {
+    // React 18 StrictMode invoca dos veces a propósito las funciones
+    // "updater" pasadas a setState, para detectar efectos secundarios como
+    // un pushState escondido ahí dentro. Si el hook fuera impuro, esto
+    // haría fallar el test con 2 llamadas en vez de 1.
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+    const { result } = renderHook(() => useUrlFilters(), {
+      wrapper: ({ children }) => createElement(StrictMode, null, children),
+    });
+
+    act(() => {
+      result.current[1]({ roomId: 'sala-sur' });
+    });
+
+    expect(pushStateSpy).toHaveBeenCalledTimes(1);
+    expect(result.current[0]).toEqual({ roomId: 'sala-sur' });
+
+    pushStateSpy.mockRestore();
   });
 });

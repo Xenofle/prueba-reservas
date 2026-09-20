@@ -64,14 +64,22 @@ export function useUrlFilters(): [BookingFilters, SetBookingFilters] {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const setFilters = useCallback<SetBookingFilters>((updates) => {
-    setFiltersState((previous) => {
-      const next = normalizeFilters({ ...previous, ...updates });
+  // pushState es un efecto secundario: no puede vivir dentro del "updater"
+  // funcional de setState. StrictMode invoca esa función dos veces a
+  // propósito en desarrollo para detectar justo esto, así que un pushState
+  // ahí dentro crea dos entradas de historial por cada cambio de filtro.
+  // Al calcular `next` aquí fuera (con el `filters` del cierre) y llamar a
+  // pushState una sola vez, setFiltersState recibe un valor plano, no una
+  // función, y no hay nada que StrictMode pueda re-ejecutar.
+  const setFilters = useCallback<SetBookingFilters>(
+    (updates) => {
+      const next = normalizeFilters({ ...filters, ...updates });
       const url = `${window.location.pathname}${filtersToSearch(next)}${window.location.hash}`;
       window.history.pushState(null, '', url);
-      return next;
-    });
-  }, []);
+      setFiltersState(next);
+    },
+    [filters],
+  );
 
   return [filters, setFilters];
 }
