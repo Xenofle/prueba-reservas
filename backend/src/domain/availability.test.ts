@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 import { describe, expect, it } from 'vitest';
-import { computeAvailability } from './availability.js';
+import { computeAvailability, isWithinRoomHours } from './availability.js';
 import type { Booking, Room } from './types.js';
 
 const salaNorte: Room = {
@@ -134,5 +134,43 @@ describe('computeAvailability', () => {
 
     expect(slots.every((slot) => DateTime.fromISO(slot.start, { zone: 'utc' }) >= now)).toBe(true);
     expect(slots.some((slot) => slot.start === '2026-09-09T07:00:00.000Z')).toBe(false);
+  });
+});
+
+describe('isWithinRoomHours', () => {
+  it('acepta una reserva que cabe entera dentro del horario', () => {
+    const fits = isWithinRoomHours({
+      room: salaNorte,
+      start: '2026-09-09T07:00:00.000Z',
+      end: '2026-09-09T08:00:00.000Z',
+    });
+    expect(fits).toBe(true);
+  });
+
+  it('rechaza una reserva que empieza antes de la apertura', () => {
+    const fits = isWithinRoomHours({
+      room: salaNorte,
+      start: '2026-09-09T06:00:00.000Z', // 08:00 local, antes de las 09:00
+      end: '2026-09-09T08:00:00.000Z',
+    });
+    expect(fits).toBe(false);
+  });
+
+  it('rechaza una reserva que termina después del cierre', () => {
+    const fits = isWithinRoomHours({
+      room: salaNorte,
+      start: '2026-09-09T17:30:00.000Z',
+      end: '2026-09-09T18:30:00.000Z', // 20:30 local, después de las 20:00
+    });
+    expect(fits).toBe(false);
+  });
+
+  it('respeta el cambio de horario de invierno a verano', () => {
+    const fits = isWithinRoomHours({
+      room: salaNorte,
+      start: '2026-01-14T08:00:00.000Z', // 09:00 local en CET
+      end: '2026-01-14T09:00:00.000Z',
+    });
+    expect(fits).toBe(true);
   });
 });

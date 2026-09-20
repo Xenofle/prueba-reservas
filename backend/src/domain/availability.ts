@@ -35,6 +35,22 @@ function toUtcIso(dt: DateTime): string {
   return requireDefined(iso ?? undefined, 'No se pudo convertir la fecha a ISO');
 }
 
+export function isWithinRoomHours(params: { room: Room; start: string; end: string }): boolean {
+  const { room, start, end } = params;
+
+  const startUtc = DateTime.fromISO(start, { zone: 'utc' });
+  const endUtc = DateTime.fromISO(end, { zone: 'utc' });
+  if (!startUtc.isValid || !endUtc.isValid) return false;
+
+  const localDate = startUtc.setZone(STUDIO_TIME_ZONE).toISODate();
+  if (!localDate) return false;
+
+  const openAt = parseLocalTime(localDate, room.openTime);
+  const closeAt = parseLocalTime(localDate, room.closeTime);
+
+  return startUtc >= openAt && endUtc <= closeAt;
+}
+
 export function computeAvailability(params: {
   room: Room;
   date: string;
