@@ -137,6 +137,16 @@ describe('BookingsList: scroll infinito', () => {
 });
 
 describe('BookingsList: confirmar y cancelar', () => {
+  beforeEach(() => {
+    // Por defecto la persona acepta el diálogo; los tests que prueban lo
+    // contrario lo sobrescriben con mockReturnValueOnce(false).
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.mocked(window.confirm).mockRestore();
+  });
+
   it('una reserva pendiente ofrece confirmar y cancelar', () => {
     render(<BookingsList {...baseProps()} items={[makeBooking({ status: 'pending' })]} total={1} />);
     expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument();
@@ -225,5 +235,42 @@ describe('BookingsList: confirmar y cancelar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cerrar aviso' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('confirmar no pide confirmación: se puede volver a cancelar después', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'pending' });
+    const onUpdateStatus = vi.fn().mockResolvedValue(undefined);
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(onUpdateStatus).toHaveBeenCalledWith(booking, 'confirmed');
+  });
+
+  it('cancelar pide confirmación antes de escribir, porque una cancelada no se reactiva', async () => {
+    const user = userEvent.setup();
+    const booking = makeBooking({ status: 'pending' });
+    const onUpdateStatus = vi.fn().mockResolvedValue(undefined);
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(onUpdateStatus).toHaveBeenCalledWith(booking, 'cancelled');
+  });
+
+  it('si se rechaza la confirmación, no se escribe nada', async () => {
+    const user = userEvent.setup();
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    const booking = makeBooking({ status: 'pending' });
+    const onUpdateStatus = vi.fn().mockResolvedValue(undefined);
+    render(<BookingsList {...baseProps()} items={[booking]} total={1} onUpdateStatus={onUpdateStatus} />);
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(onUpdateStatus).not.toHaveBeenCalled();
   });
 });

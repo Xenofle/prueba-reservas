@@ -81,6 +81,15 @@ function BookingRow({ booking, roomName, onUpdateStatus }: BookingRowProps) {
             type="button"
             disabled={isSubmitting}
             onClick={() => {
+              // Cancelar es irreversible (una cancelada no se reactiva ni
+              // se mueve): se confirma antes de escribir. Confirmar no
+              // necesita este paso, se puede volver a cancelar después.
+              if (
+                action === 'cancelled' &&
+                !window.confirm('¿Seguro que quieres cancelar esta reserva? No se podrá reactivar.')
+              ) {
+                return;
+              }
               void handleAction(action);
             }}
           >
