@@ -10,6 +10,7 @@ import type {
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 300;
+const MAX_RETRY_DELAY_MS = 10_000;
 const RETRYABLE_STATUSES = new Set([503, 429]);
 
 export class ApiError extends Error {
@@ -62,7 +63,7 @@ function retryDelayMs(response: Response, attempt: number): number {
     const retryAfterHeader = response.headers.get('Retry-After');
     const retryAfterSeconds = retryAfterHeader !== null ? Number(retryAfterHeader) : NaN;
     if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
-      return retryAfterSeconds * 1000;
+    return Math.min(retryAfterSeconds * 1000, MAX_RETRY_DELAY_MS);
     }
   }
   return BASE_RETRY_DELAY_MS * 2 ** attempt;
