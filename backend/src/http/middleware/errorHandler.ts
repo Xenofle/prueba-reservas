@@ -1,17 +1,33 @@
 import type { ErrorRequestHandler } from 'express';
 import { AppError } from '../errors.js';
 
+// express.json() (body-parser) lanza un SyntaxError con `status: 400` y una
+// propiedad `body` cuando el cuerpo no es JSON válido; no es una instancia de
+// AppError, así que hay que reconocerlo aparte para no caer en el 500.
+function isBodyParserSyntaxError(err: unknown): boolean {
+  return (
+    err instanceof SyntaxError &&
+    'status' in err &&
+    (err as { status: unknown }).status === 400 &&
+    'body' in err
+  );
+}
+
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-  if (err instanceof AppError) {
-    const retryAfter = err.details?.retryAfter;
+  const normalizedErr = isBodyParserSyntaxError(err)
+    ? new AppError('INVALID_JSON', 'El cuerpo de la petición no es JSON válido.')
+    : err;
+
+  if (normalizedErr instanceof AppError) {
+    const retryAfter = normalizedErr.details?.retryAfter;
     if (typeof retryAfter === 'number') {
       res.setHeader('Retry-After', String(retryAfter));
     }
 
-    res.status(err.status).json({
-      error: err.code,
-      message: err.message,
-      ...(err.details ? { details: err.details } : {}),
+    res.status(normalizedErr.status).json({
+      error: normalizedErr.code,
+      message: normalizedErr.message,
+      ...(normalizedErr.details ? { details: normalizedErr.details } : {}),
     });
     return;
   }

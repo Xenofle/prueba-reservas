@@ -1,4 +1,5 @@
 export type ErrorCode =
+  | 'INVALID_JSON'
   | 'INVALID_LIMIT'
   | 'INVALID_CURSOR'
   | 'INVALID_RANGE'
@@ -12,6 +13,7 @@ export type ErrorCode =
   | 'UPSTREAM_UNAVAILABLE';
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
+  INVALID_JSON: 400,
   INVALID_LIMIT: 400,
   INVALID_CURSOR: 400,
   INVALID_RANGE: 400,
