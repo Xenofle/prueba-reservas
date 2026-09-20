@@ -3,6 +3,7 @@ import { getRooms } from './api/client';
 import type { Room } from './api/types';
 import { BookingsList } from './components/BookingsList';
 import { Filters } from './components/Filters';
+import { NewBookingDialog } from './components/NewBookingDialog';
 import { useBookings } from './hooks/useBookings';
 import { useUrlFilters } from './hooks/useUrlFilters';
 
@@ -12,6 +13,7 @@ function App() {
     useBookings(filters);
 
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -27,6 +29,11 @@ function App() {
   return (
     <main>
       <h1>Panel de reservas de estudio</h1>
+      <div className="toolbar">
+        <button type="button" onClick={() => setIsDialogOpen(true)}>
+          Nueva reserva
+        </button>
+      </div>
       <Filters filters={filters} rooms={rooms} onChange={setFilters} />
       <BookingsList
         items={items}
@@ -40,6 +47,13 @@ function App() {
         onRetry={reload}
         onUpdateStatus={updateBookingStatus}
       />
+      {isDialogOpen && (
+        <NewBookingDialog
+          rooms={rooms}
+          onClose={() => setIsDialogOpen(false)}
+          onCreated={reload}
+        />
+      )}
     </main>
   );
 }

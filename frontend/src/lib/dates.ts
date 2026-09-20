@@ -58,3 +58,11 @@ export function formatLocalDateTime(isoUtc: string): string {
   }
   return local.setLocale('es-ES').toFormat("dd/MM/yyyy HH:mm");
 }
+
+// Día de hoy en la zona del estudio, no la del navegador (útil como valor
+// por defecto en el selector de día del diálogo de nueva reserva).
+export function todayLocalDate(): string {
+  const today = DateTime.now().setZone(STUDIO_TIME_ZONE).toISODate();
+  if (today === null) throw new Error('No se pudo obtener la fecha de hoy');
+  return today;
+}

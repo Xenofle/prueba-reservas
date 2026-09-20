@@ -1,7 +1,10 @@
+import { DateTime } from 'luxon';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   formatLocalDateTime,
   localDateTimeToUtcIso,
+  STUDIO_TIME_ZONE,
+  todayLocalDate,
   utcIsoToLocalDate,
   utcIsoToLocalTime,
 } from './dates';
@@ -38,6 +41,13 @@ describe('formatLocalDateTime', () => {
   it('formatea en la zona del estudio, no en la del sistema', () => {
     expect(formatLocalDateTime('2026-01-14T08:00:00.000Z')).toBe('14/01/2026 09:00');
     expect(formatLocalDateTime('2026-07-14T07:00:00.000Z')).toBe('14/07/2026 09:00');
+  });
+});
+
+describe('todayLocalDate', () => {
+  it('coincide con el día de hoy calculado explícitamente en Europe/Madrid', () => {
+    const expected = DateTime.now().setZone(STUDIO_TIME_ZONE).toISODate();
+    expect(todayLocalDate()).toBe(expected);
   });
 });
 
