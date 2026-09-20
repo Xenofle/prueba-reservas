@@ -17,12 +17,14 @@ export function createApp(
   const app = express();
   app.use(express.json());
 
-  // Orden importa: la idempotencia debe resolver un reintento con clave ya
-  // vista antes de que el caos pueda hacerlo fallar de nuevo; el caos, a su
-  // vez, va siempre antes de las rutas para no llegar nunca a tocar el store.
+  // Orden importa: la idempotencia va antes que el rate limit para que un
+  // replay con clave ya cacheada no consuma cupo de escritura, y antes que
+  // el caos para que ese replay tampoco dependa de superar el sorteo de
+  // nuevo. El caos, a su vez, va siempre antes de las rutas para no llegar
+  // nunca a tocar el store.
   app.use(createLatencyMiddleware(config));
-  app.use(createRateLimitMiddleware(config));
   app.use(createIdempotencyMiddleware(config));
+  app.use(createRateLimitMiddleware(config));
   app.use(createChaosMiddleware(config));
 
   app.get('/api/health', (_req, res) => {

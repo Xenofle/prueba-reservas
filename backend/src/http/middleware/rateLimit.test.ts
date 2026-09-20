@@ -69,4 +69,36 @@ describe('límite de escrituras', () => {
     const write = await request(app).post('/api/bookings').send(bookingPayload());
     expect(write.status).toBe(201);
   });
+
+  it('los replays de una misma Idempotency-Key no consumen cupo de rate limit', async () => {
+    const store = createStore({ rooms, bookings: [] });
+    const app = createApp(store, baseConfig({ rateLimitMax: 2 }));
+
+    const first = await request(app)
+      .post('/api/bookings')
+      .set('Idempotency-Key', 'clave-replay')
+      .send(bookingPayload({ start: '2026-09-09T09:00:00.000Z', end: '2026-09-09T10:00:00.000Z' }));
+    expect(first.status).toBe(201);
+
+    for (let i = 0; i < 5; i++) {
+      const replay = await request(app)
+        .post('/api/bookings')
+        .set('Idempotency-Key', 'clave-replay')
+        .send(bookingPayload({ start: '2026-09-09T09:00:00.000Z', end: '2026-09-09T10:00:00.000Z' }));
+      expect(replay.status).toBe(200);
+      expect(replay.body.id).toBe(first.body.id);
+    }
+
+    // Queda un segundo cupo real (rateLimitMax=2): si los replays lo hubieran
+    // gastado, esta escritura distinta ya estaría bloqueada con 429.
+    const second = await request(app)
+      .post('/api/bookings')
+      .send(bookingPayload({ start: '2026-09-09T11:00:00.000Z', end: '2026-09-09T12:00:00.000Z' }));
+    expect(second.status).toBe(201);
+
+    const third = await request(app)
+      .post('/api/bookings')
+      .send(bookingPayload({ start: '2026-09-09T13:00:00.000Z', end: '2026-09-09T14:00:00.000Z' }));
+    expect(third.status).toBe(429);
+  });
 });
